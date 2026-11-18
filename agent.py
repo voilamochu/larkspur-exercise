@@ -87,7 +87,7 @@ def run_agent(pnr: str, last_name: str, message: str) -> str:            # ✏�
 def tool_list() -> List[Dict[str, Any]]:                   # ✏️ Build 2, step 2.2
     """Given. Exactly what Claude is offered on every turn; run.py --show-tools
     prints this list."""
-    return build_tools() + EXTRA_TOOLS
+    return build_tools() + EXTRA_TOOLS + mcp_client.tools()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -250,8 +250,6 @@ DATA_DATE = ("YYYY-MM-DD in the data's own calendar: the segment date lookup_boo
              "e.g. 2025-05-08. 'Today' or 'tonight' means that date, never the Current time line.")
 HORIZON = ("flights.csv covers %s to %s only, and the data's now is bookings.json's fixture_clock."
            % (backend.DATA_HORIZON_START, backend.DATA_HORIZON_END))
-STOP_WORDS = {"what", "when", "why", "does", "do", "the", "and", "for", "get", "not", "with",
-              "can", "you", "my", "a", "an", "of", "to", "is", "i", "on", "in", "me"}
 
 
 def _now() -> datetime:
@@ -276,39 +274,6 @@ def _handbook() -> Dict[str, Dict[str, str]]:
 def _flight_row(flight_no: str, date: str):
     return next((r for r in backend.load_flights()
                  if r["flight_no"] == flight_no and r["date"] == date), None)
-
-
-def available_day(origin: str, dest: str, date: str, cabin: str = "Y") -> Dict[str, Any]:
-    if not ISO_DATE.match(str(date)):
-        return {"error": "date must be YYYY-MM-DD, got %s" % date}
-    day = next_available_day(origin, dest, date, cabin)
-    if day is None:
-        return {"earliest_date": None, "origin": origin, "dest": dest, "cabin": cabin,
-                "note": "flights.csv has no open seat on this route from that date. "
-                        "Do not suggest a date."}
-    return {"earliest_date": day, "origin": origin, "dest": dest, "cabin": cabin,
-            "source": "flights.csv"}
-
-
-def fare_rules(topic: str) -> Dict[str, Any]:
-    words = [w for w in re.findall(r"[a-z]+", topic.lower()) if w not in STOP_WORDS and len(w) > 2]
-    need = max(1, (len(words) + 1) // 2)   # one stray word in common is not an answer
-    hits = []
-    for num, sec in _handbook().items():
-        if num == "7":   # section 7 belongs to what_automation_will_not_do
-            continue
-        for para in sec["text"].split("\n\n"):
-            score = sum(bool(re.search(r"\b%s" % re.escape(w), para.lower())) for w in words)
-            if score >= need:
-                hits.append((score, num, sec["heading"], para))
-    if not hits:
-        return {"found": False, "topic": topic,
-                "note": "Handbook sections 4 to 6 say nothing on this. "
-                        "Do not answer it from memory."}
-    hits.sort(key=lambda h: -h[0])
-    return {"found": True, "source": "Handbook v14.3, fare_rules_excerpt.md",
-            "precedence": "If this text and check_policy disagree, check_policy wins.",
-            "passages": [{"section": h[2], "text": h[3]} for h in hits[:4]]}
 
 
 def reopen_stats(intent_label: str = None) -> Dict[str, Any]:
@@ -478,44 +443,8 @@ def what_automation_will_not_do() -> Dict[str, Any]:
 
 
 EXTRA_TOOLS: List[Dict[str, Any]] = [        # ✏️ Build 2, step 2.1: schemas for the tools you add
-    {
-        "name": "next_available_day",
-        "description": (
-            "Find the earliest date with an open seat between two airports, on or after a "
-            "given date. Use when the customer asks when they can fly at all, the soonest "
-            "day, or whether anything goes today or tomorrow, rather than for a list of "
-            "specific flights. It answers for one seat: for a party, confirm the date has room "
-            "for everyone with search_alternatives before promising it. Returns earliest_date, "
-            "or null with a note when the data has no open seat; never suggest a date it did "
-            "not return."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "origin": {"type": "string", "description": "IATA code the customer flies from, e.g. DEN"},
-                "dest": {"type": "string", "description": "IATA code the customer flies to, e.g. BOI"},
-                "date": {"type": "string", "description": "First date to consider. " + DATA_DATE},
-                "cabin": {"type": "string", "enum": ["Y", "J"], "description": "Y is Main, J is First. Defaults to Y."},
-            },
-            "required": ["origin", "dest", "date"],
-        },
-    },
-    {
-        "name": "fare_rules",
-        "description": (
-            "Read Larkspur's Handbook (v14.3, sections 4 to 6: fare families, disruptions, "
-            "care while you wait) for the reason behind a rule. Use when the customer asks "
-            "why: why no hotel, why no refund, why Basic can or cannot change. Returns the "
-            "matching Handbook passages verbatim, or found=false. It explains rules; "
-            "check_policy still decides what this customer gets. What chat may not do is "
-            "what_automation_will_not_do, not this."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {"topic": {"type": "string", "description": "A few plain words, e.g. 'hotel weather' or 'basic fare change'"}},
-            "required": ["topic"],
-        },
-    },
+    # next_available_day and fare_rules are served by the MCP server now
+    # (support/mcp_server.py) and reach Claude through tool_list().
     {
         "name": "reopen_stats",
         "description": (
@@ -656,8 +585,6 @@ EXTRA_TOOLS: List[Dict[str, Any]] = [        # ✏️ Build 2, step 2.1: schemas
 ]
 
 LOCAL_TOOLS: Dict[str, Any] = {               # ✏️ Build 2, step 2.1: the functions behind them
-    "next_available_day": available_day,
-    "fare_rules": fare_rules,
     "reopen_stats": reopen_stats,
     "care_entitlements": care_entitlements,
     "cause_in_plain_words": cause_in_plain_words,
