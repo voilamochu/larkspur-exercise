@@ -277,23 +277,40 @@ def run_agent(pnr: str, last_name: str, message: str) -> str:            # ‚úèÔ∏
     """Run the tool loop until Claude stops asking for tools. Return its final text."""
     client, tracer = new_session()
     tools = tool_list()
+    # Cost: the prompt cache matches an exact prefix (tools, then system, then
+    # messages). The timestamp changes every second, so it must not sit in the
+    # system prompt. It is taken once per run and goes in the first user message.
+    system = [{"type": "text", "text": SYSTEM_PROMPT + TONE_ADDENDUM,
+               "cache_control": {"type": "ephemeral"}}]
     messages = [
-        {"role": "user", "content": f"PNR {pnr}, last name {last_name}. {message}"},
+        {"role": "user", "content": runtime_preamble() + f"PNR {pnr}, last name {last_name}. {message}"},
     ]
 
-    response = client.messages.create(
-        model=MODEL, max_tokens=4096, system=runtime_preamble() + SYSTEM_PROMPT + TONE_ADDENDUM,
-        thinking={"type": "adaptive"}, tools=tools, messages=messages,
-    )
+    def ask():
+        # Rolling breakpoint on the newest message so each turn reads the prior
+        # turns from cache. Clear the old one first (the API allows 4 breakpoints).
+        for m in messages:
+            if isinstance(m["content"], list):
+                for b in m["content"]:
+                    if isinstance(b, dict):
+                        b.pop("cache_control", None)
+        last = messages[-1]
+        if isinstance(last["content"], str):
+            last["content"] = [{"type": "text", "text": last["content"]}]
+        if isinstance(last["content"][-1], dict):
+            last["content"][-1]["cache_control"] = {"type": "ephemeral"}
+        return client.messages.create(
+            model=MODEL, max_tokens=4096, system=system,
+            thinking={"type": "adaptive"}, tools=tools, messages=messages,
+        )
+
+    response = ask()
 
     turns = 1
     while response.stop_reason == "tool_use" and turns < MAX_TOOL_CALLS:
         messages.append({"role": "assistant", "content": response.content})
         messages.append({"role": "user", "content": tool_results(response)})
-        response = client.messages.create(
-            model=MODEL, max_tokens=4096, system=runtime_preamble() + SYSTEM_PROMPT + TONE_ADDENDUM,
-            thinking={"type": "adaptive"}, tools=tools, messages=messages,
-        )
+        response = ask()
         turns += 1
 
     return text_of(response)
