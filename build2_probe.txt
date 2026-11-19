@@ -1,3 +1,9 @@
+<<<<<<< HEAD
 [K7PQ2M]
 [Marchetti]
 [When is the first day I can actually fly?]
+=======
+K7PQ2M
+Marchetti
+My flight to Austin just got cancelled. What is the first day I can actually get home?
+>>>>>>> ccf75d9299967c285a6cf1b5c28467e4ee93d841
