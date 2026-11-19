@@ -1,7 +1,5 @@
 # PITCH.md
 
-Six lines and a lever. Your words. The last two are scored.
-
 Built: A support agent for disrupted flights, with Larkspur's nine tools plus eight more we wrote (seats_left, care_entitlements, cause_in_plain_words and five others), and next_available_day and fare_rules served over MCP: 19 tools in all.
 Does: It looks up the booking, checks the flight status, says the cause in Larkspur's approved plain words, finds the first day the customer can get home, checks what policy owes them, and searches alternative flights with seats; it hands groups to a human.
 Number: 67,538 to 124,641 tokens in, total of the five tickets (9 tools in Build 1, 19 tools after Build 2).
