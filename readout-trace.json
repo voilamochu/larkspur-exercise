@@ -1,11 +1,12 @@
 {
-  "turns": 4,
-  "tool_calls": 4,
+  "turns": 5,
+  "tool_calls": 5,
   "tool_names": [
     "lookup_booking",
     "get_flight_status",
+    "cause_in_plain_words",
     "check_policy",
-    "cause_in_plain_words"
+    "issue_voucher"
   ],
   "saw_thinking": true,
   "used_format": false,
@@ -13,11 +14,11 @@
   "streamed": false,
   "deltas_seen": 0,
   "tokens": {
-    "input": 24646,
-    "output": 960,
-    "cache_read": 0,
+    "input": 5103,
+    "output": 1128,
+    "cache_read": 27025,
     "cache_write": 0
   },
-  "cache_hit_ratio": null,
-  "elapsed": 9.0
+  "cache_hit_ratio": 0.8411665836653387,
+  "elapsed": 10.9
 }
